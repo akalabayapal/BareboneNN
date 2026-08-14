@@ -1,110 +1,126 @@
-# Main implementation of bareboneNN
-
+import numpy as np
 from layers import *
-from loss_function import CrossEntropyMultiClassLoss
+import gc
 
 class BareboneNN:
 
     def __init__(self,*layers):
 
-        # process the layers one by one and add it to a list
-        if not isinstance(layers[0],LinearLayer):
-            raise TypeError('The input layer must be dense(LinearLayer)')
-
         self.layers_list = layers
         self.loss_function = None
 
-    
+    def fit(self,X:np.ndarray,Y:np.ndarray,epoch:int,batch_size:int=None):
 
-    def fit(self,X,Y,epoch:int):
+        '''
+        X: Numpy array of data matrix
+        Y: Labels or prediction data
+        epoch: Number of times to rotate the data for training
+        batch_size: The number of data to rotate at a single time (DEFAULT:Whole data is processed at once)
 
-        input_layer:LinearLayer = self.layers_list[0]
-        input_layer.data = X
+        WARNING: While training ensure to add a considerable batch size.
+        '''
+        if batch_size == None:
+            batch_size = X.shape[0] # If no batch size is specified then whole content is loaded at once
 
+        self.X = X
         self.Y = Y
+        self.batch_size = batch_size # store the batch size
 
-        # initalize the linear layers
-        n_in = X.shape[1] # gets number of cols
 
         for layer_index,layer in enumerate(self.layers_list):
-
+        
             if isinstance(layer,LinearLayer):
                 if layer_index + 1 == len(self.layers_list):
                     next_layer = None
                 else:
                     next_layer = self.layers_list[layer_index+1]
-                layer.initalize(n_in=n_in,next_layer=next_layer)
-                n_in = layer.nos_nerons
-
+                layer.initalize(next_layer=next_layer)
+        
             elif isinstance(layer,SoftmaxLayer):
-                if layer_index - 1 < 0:
-                    raise TypeError('Fist layer can not be a softmax layer.Use a dense layer.')
-
-                if n_in != len(np.unique(self.Y)):
-                    raise TypeError('The previous dense layer output neurons must match the number of classes of the data.')
-
                 layer.y = self.Y
-
                 # check if this is the last layer
                 if layer_index == len(self.layers_list) - 1:
                     layer.last = True # yes, this is the last layer
-                    
-                    
+            elif hasattr(layer, "initalize") and callable(getattr(layer,"initalize")):
+                layer.initalize() # initalze the function if the weigh are needed to be initalized before hand
+        
+        
 
         self.__train(epoch)
 
-        
-
-
+    
     def __train(self,epoch:int):
-
         if self.loss_function == None:
             raise RuntimeError('Please specify a valid Loss function.\n' \
             'use: import loss_function\n' \
             'BareboneNN_instance.loss_function = <Any-loss-function>')
 
-        self.m = self.loss_function(self.Y)
+        total = self.X.shape[0]
 
-        for _ in range(epoch):
+        # print("batch_size:",self.batch_size)
 
-            # forward movement
+        for e in range(epoch):
+            for batch in range(0,total,self.batch_size):
+                self.__train_batch(self.X[batch:batch+self.batch_size],self.Y[batch:batch+self.batch_size])
+                # print(f"Training Epoch ({e+1}/{epoch}):Batch {batch+1} completed....")
 
-            forward_data = self.layers_list[0].forward()
-
-            for layer in self.layers_list[1:]:
-
-                layer.data = forward_data
-                forward_data = layer.forward()
+            gc.collect()
 
 
-            # backward movement
+    def model_eval(self):
 
-            error = self.m.get_errors(forward_data)
+        '''
+        This cleans up all cached intermediate matrices, and data during training. This should be ran before dumping to storage or else model size might be huge.
+        '''
+        # cleaning up excess data
+        del self.X
+        del self.Y
 
-            for layer in self.layers_list[::-1]:
-                error = layer.backward(error)
+        for layer in self.layers_list:
+
+            if hasattr(layer,'forward_data'):
+                del layer.forward_data
+            if hasattr(layer,'data'):
+                del layer.data
+
+        gc.collect()
+
+
+    def __train_batch(self,batch_x,batch_y):
+        # handler to train a single batch
+        
+        # forward movement
+        self.layers_list[0].data = batch_x
+        forward_data = self.layers_list[0].forward()
+
+        for layer in self.layers_list[1:]:
+            layer.data = forward_data
+            forward_data = layer.forward()
+
+        # backward movement
+        error = self.loss_function.get_errors(forward_data,batch_y)
+
+        for layer in self.layers_list[::-1]:
+            error = layer.backward(error)
+
+        return error
 
     def predict(self,X):
 
-        
         forward_data = self.layers_list[0].inference(X)
         
         for layer in self.layers_list[1:]:
-        
             forward_data = layer.inference(forward_data)
 
         return forward_data
 
     @property
     def errors(self):
-    
         return self.m.error
 
     @property
     def error(self):
-
         return self.m.error[-1]
-        
 
         
 

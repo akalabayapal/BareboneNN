@@ -3,14 +3,13 @@
 import numpy as np 
 
 class MSELoss:
-    def __init__(self,Y:np.array):
+    def __init__(self):
 
-        self.Y = Y
         self.error = []
         self.grad_err = None
 
 
-    def get_errors(self,last_data:np.array):
+    def get_errors(self,last_data:np.array,Y:np.ndarray):
         '''
         Computes the errors and gives back to prev layer
         '''
@@ -21,7 +20,7 @@ class MSELoss:
         # convert it into row major
 
 
-        self.grad_err = np.array([last_data[:,0] - self.Y]).T 
+        self.grad_err = np.array([last_data[:,0] - Y]).T 
 
         self.error.append(np.mean(self.grad_err ** 2))
 
@@ -29,13 +28,13 @@ class MSELoss:
 
 
 class MAELoss:
-    def __init__(self,Y:np.array):
+    def __init__(self):
     
-            self.Y = Y
+    
             self.error = []
             self.grad_err = None
 
-    def get_errors(self,last_data:np.array):
+    def get_errors(self,last_data:np.array,Y:np.ndarray):
             
         '''
         Computes the errors and gives back to prev layer
@@ -47,7 +46,7 @@ class MAELoss:
         # convert it into row major
 
 
-        err= np.array([last_data[:,0] - self.Y]).T 
+        err= np.array([last_data[:,0] - Y]).T 
 
         self.grad_err = np.sign(err)/last_data.shape[0]
 
@@ -58,14 +57,13 @@ class MAELoss:
 
 
 class CrossEntropyBinaryLoss:
-    def __init__(self, Y: np.ndarray, eps: float = 1e-15):
+    def __init__(self, eps: float = 1e-15):
         # Reshape Y to column vector (k, 1) to match last_data shape guaranteed
-        self.Y = Y.reshape(-1, 1)
         self.eps = eps
         self.error = []
         self.grad_err = None
 
-    def get_errors(self, last_data: np.ndarray) -> np.ndarray:
+    def get_errors(self, last_data: np.ndarray,Y:np.array) -> np.ndarray:
         '''
         Computes the BCE scalar loss and returns the gradient to the previous layer.
         Expects last_data shape: (k, 1) and Y shape: (k, 1)
@@ -80,29 +78,27 @@ class CrossEntropyBinaryLoss:
         preds = np.clip(last_data, self.eps, 1.0 - self.eps)
 
         # 2. Scalar Loss Calculation: - [y * log(p) + (1 - y) * log(1 - p)]
-        loss_matrix = -(self.Y * np.log(preds) + (1.0 - self.Y) * np.log(1.0 - preds))
+        loss_matrix = -(Y * np.log(preds) + (1.0 - Y) * np.log(1.0 - preds))
         self.error.append(np.mean(loss_matrix))
 
         k = last_data.shape[0]
 
-        self.grad_err = (preds - self.Y) / (preds * (1 - preds) * k)
+        self.grad_err = (preds - Y) / (preds * (1 - preds) * k)
 
         return self.grad_err
 
 class CrossEntropyMultiClassLoss:
-    def __init__(self,Y:np.array,eps=1e-15):
+    def __init__(self,unique_y,eps: float=1e-15):
         
-        self.Y = Y
         self.error = []
         self.grad_err = None
         self.eps = eps
 
-        self.unique_y = len(np.unique(self.Y))
+        self.unique_y = unique_y
+        
 
-        self.one_hot = np.eye(self.unique_y,dtype=int)[self.Y]
 
-
-    def get_errors(self,last_data:np.ndarray) -> np.ndarray:
+    def get_errors(self,last_data:np.ndarray,Y:np.ndarray) -> np.ndarray:
         '''
         Computes the MCE scalar loss and returns the gradient to the previous layer.
         Expects last_data shape: (k, n) and Y shape: (k, 1)
@@ -113,14 +109,16 @@ class CrossEntropyMultiClassLoss:
                 f'The output layer must have an output of shape (k, n), Where n=Number of unique classes in dataset '
                 f'got ({last_data.shape[0]}, {last_data.shape[1]}) instead.'
             )
+        
+        one_hot = np.eye(self.unique_y,dtype=int)[Y]
 
-        self.grad_err = (last_data - self.one_hot)/last_data.shape[0]
+        self.grad_err = (last_data - one_hot)/last_data.shape[0]
 
         # 1. Clip predictions to avoid log(0)
         clipped_preds = np.clip(last_data, self.eps, 1 - self.eps)
 
         # 2. Element-wise multiplication and mean loss
-        self.error.append(-np.mean(np.sum(self.one_hot * np.log(clipped_preds), axis=1)))
+        self.error.append(-np.mean(np.sum(one_hot * np.log(clipped_preds), axis=1)))
 
         return self.grad_err
 

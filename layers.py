@@ -5,10 +5,26 @@ import numpy as np
 
 class LinearLayer:
 
-    def __init__(self,neurons_number:int,learning_rate:float,init_method:str=None):
+    def __init__(self,neurons_in:int,neurons_out:int,learning_rate:float,init_method:str=None):
+        '''
+        neurons_in: Number of neurons that this layer will accept. In case this is used as a first layer
+        the value must be set to X.shape[1] (number of feature cols)
+
+        neurons_out: Number of neurons that will be processed in this layer and to be forwarded to suceeding layers.
+
+        learning_rate: Specify the learning rate of the Neuron weights in this layer
+
+        init_method: The weight initalization method to be used. If None during the fit() the init_method is auto selected:
+             
+            - 'he': He Kaiming initialization of weights
+            - 'xavier': Xaviers initaliztion of weights
+
+        '''
         # m : number of neurons
         # n : number of features
-        self.nos_nerons = neurons_number
+
+        self.n_in = neurons_in
+        self.nos_nerons = neurons_out
 
         self.init_method = init_method
         self.weights = None # this will be initalized later (m x n)
@@ -17,7 +33,7 @@ class LinearLayer:
         self.forward_data = None # (k x m)
         self.lr_rate = learning_rate
 
-        self.b = np.zeros((1, neurons_number))
+        self.b = np.zeros((1, neurons_out))
 
         
 
@@ -25,7 +41,7 @@ class LinearLayer:
         self.error_normal = None # (k x n)
         self.error_b = None
 
-    def initalize(self,n_in,next_layer):
+    def initalize(self,next_layer):
 
         if self.init_method == None:
 
@@ -36,14 +52,14 @@ class LinearLayer:
 
         # Select weight initialization strategy
         if self.init_method == "he":
-            limit = np.sqrt(2.0 / n_in)
-            self.weights = np.random.randn(n_in, self.nos_nerons) * limit
+            limit = np.sqrt(2.0 / self.n_in)
+            self.weights = np.random.randn(self.n_in, self.nos_nerons) * limit
         elif self.init_method == "xavier":
-            limit = np.sqrt(2.0 / (n_in + self.nos_nerons))
-            self.weights = np.random.randn(n_in, self.nos_nerons) * limit
+            limit = np.sqrt(2.0 / (self.n_in + self.nos_nerons))
+            self.weights = np.random.randn(self.n_in, self.nos_nerons) * limit
         else:
             # Simple small random values
-            self.weights = np.random.randn(n_in, self.nos_nerons) * 0.01
+            self.weights = np.random.randn(self.n_in, self.nos_nerons) * 0.01
 
 
     def forward(self):
@@ -54,7 +70,6 @@ class LinearLayer:
         return self.forward_data
 
     def inference(self,data:np.array):
-
         return data @ self.weights + self.b
 
     def backward(self, error: np.ndarray):
@@ -69,7 +84,8 @@ class LinearLayer:
 
         # 4. Update weights using learning rate
         self.weights -= self.lr_rate * grad_weights
-        self.b -= self.lr_rate * self.error_b   
+        self.b -= self.lr_rate * self.error_b  
+
 
         return self.error_normal
 
@@ -100,6 +116,8 @@ class SigmoidLayer:
     def backward(self,error:np.array):
 
         self.error = error * (self.forward_data*(1 - self.forward_data))
+
+
         return self.error
 
 class ReluLayer:
@@ -130,6 +148,7 @@ class ReluLayer:
 
         # Element-wise multiplication with incoming error
         self.error = error * relu_grad
+
         return self.error
 
 class LeakyReluLayer:
@@ -188,6 +207,7 @@ class EluLayer:
         # f'(x) = 1 if x > 0 else alpha * exp(x)
         elu_grad = np.where(self.data > 0, 1.0, self.alpha * np.exp(self.data))
         self.error = error * elu_grad
+
         return self.error
 
 class TanhLayer:
