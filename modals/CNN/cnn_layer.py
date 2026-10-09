@@ -14,8 +14,10 @@ backward: must return the error for the current layer. So the BareBoneNN's Layer
 
 '''
 from modals.CNN.imgutils import *
+from layers import *
 
 import numpy as np
+
 
 class Conv2DLayer:
 
